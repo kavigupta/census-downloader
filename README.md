@@ -26,4 +26,4 @@ census-downloader --output out.csv --columns COUNTY COUSUB SUBMCD ESTATE CONCIT 
 
 Note that I didn't put a `--states` argument. By default if you don't provide it it gives you all the states
 
-On my machine this takes several minutes to run, about 4.5GB of RAM and produces a file that is 1.9GB.
+On my machine this takes 8min to run, about 8.3GB of RAM and produces a file that is 1.9GB.
