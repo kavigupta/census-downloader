@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="census-downloader",
-    version="1.0.0",
+    version="1.0.1",
     author="Kavi Gupta",
     author_email="censusdownloader@kavigupta.org",
     description="Clean way to download census data.",
