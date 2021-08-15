@@ -21,10 +21,6 @@ def get_headers():
     return geoheaders, segment_headers
 
 
-# @permacache(
-#     "census-centroid-blocks/download_census_for_state_3",
-#     key_function=dict(state=lambda state: state.abbr),
-# )
 def download_census_for_state(state, columns):
     assert set(columns) & {"CHARITER", "CIFSN", "FILEID"} == set()
     geoheaders, segment_headers = get_headers()
@@ -64,7 +60,6 @@ def download_census_for_state(state, columns):
     return overall[columns]
 
 
-# @permacache("census-centroid-blocks/download_census")
 def download_census(columns, states):
     result = None
     for state in tqdm.tqdm(us.states.STATES_AND_TERRITORIES):
