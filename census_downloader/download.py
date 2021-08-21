@@ -62,7 +62,7 @@ def download_census_for_state(state, columns):
 
 def download_census(columns, states):
     result = None
-    for state in tqdm.tqdm(us.states.STATES_AND_TERRITORIES):
+    for state in tqdm.tqdm(us.states.STATES_AND_TERRITORIES + [us.states.DC]):
         if state.abbr not in states:
             continue
         current = download_census_for_state(state, columns=columns)
