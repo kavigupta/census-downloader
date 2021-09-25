@@ -21,7 +21,7 @@ def get_headers():
     return geoheaders, segment_headers
 
 
-def download_census_for_state(state, columns):
+def download_census_for_state(state, columns, filter_level):
     assert set(columns) & {"CHARITER", "CIFSN", "FILEID"} == set()
     geoheaders, segment_headers = get_headers()
     s_name = state.name.replace(" ", "_")
@@ -40,7 +40,11 @@ def download_census_for_state(state, columns):
                 encoding="latin-1",
             )
             result = result[
-                [col for col in result if col in columns or col == "LOGRECNO"]
+                [
+                    col
+                    for col in result
+                    if col in columns or col == "LOGRECNO" or col == "SUMLEV"
+                ]
             ]
             return result
 
@@ -57,15 +61,20 @@ def download_census_for_state(state, columns):
             assert (table[col] == overall[col]).all()
         overall = overall.merge(table)
 
+    if filter_level is not None:
+        overall = overall[overall.SUMLEV == filter_level]
+
     return overall[columns]
 
 
-def download_census(columns, states):
+def download_census(columns, states, filter_level):
     result = None
     for state in tqdm.tqdm(us.states.STATES_AND_TERRITORIES + [us.states.DC]):
         if state.abbr not in states:
             continue
-        current = download_census_for_state(state, columns=columns)
+        current = download_census_for_state(
+            state, columns=columns, filter_level=filter_level
+        )
         if result is None:
             result = current
         else:

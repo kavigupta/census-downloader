@@ -64,5 +64,8 @@ def cli():
             "PR",
         ],
     )
+    parser.add_argument("--filter-level", default=None, type=int)
     args = parser.parse_args()
-    download_census(args.columns, args.states).to_csv(args.output)
+    download_census(args.columns, args.states, args.filter_level).to_csv(
+        args.output, index=False
+    )
