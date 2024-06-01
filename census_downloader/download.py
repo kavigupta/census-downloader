@@ -9,11 +9,17 @@ import pandas as pd
 from permacache import permacache
 
 
-PREFIX = "https://www2.census.gov/programs-surveys/decennial/2020/data/01-Redistricting_File--PL_94-171"
+PREFIX = "https://www2.census.gov/programs-surveys/decennial/{year}/data/01-Redistricting_File--PL_94-171"
+
+headers_2020 = "https://www2.census.gov/programs-surveys/decennial/rdo/about/2020-census-program/Phase3/SupportMaterials/2020_PLSummaryFile_FieldNames.xlsx"
 
 
-def get_headers():
-    xls = pd.ExcelFile("https://t.co/6FOEAUjOD3?amp=1")
+def get_headers(year):
+    # assuming 2010 has the same headers as 2020 execpt without the 3rd sheet
+
+    assert year == 2020
+
+    xls = pd.ExcelFile(headers_2020)
     geoheaders = list(pd.read_excel(xls, "2020 P.L. Geoheader Fields"))
     segment_headers = {
         i: list(pd.read_excel(xls, f"2020 P.L. Segment {i} Fields")) for i in (1, 2, 3)
@@ -21,12 +27,18 @@ def get_headers():
     return geoheaders, segment_headers
 
 
-def download_census_for_state(state, columns, filter_level):
-    assert set(columns) & {"CHARITER", "CIFSN", "FILEID"} == set()
-    geoheaders, segment_headers = get_headers()
+PER_FILE_COLUMNS = {"FILEID", "CHARITER", "CIFSN"}
+
+
+def download_census_for_state(state, columns, *, filter_level, year):
+    geoheaders, segment_headers = get_headers(year)
+    if columns is None:
+        columns = geoheaders + [v for vals in segment_headers.values() for v in vals]
+        columns = [x for x in columns if x not in PER_FILE_COLUMNS]
+    assert set(columns) & PER_FILE_COLUMNS == set()
     s_name = state.name.replace(" ", "_")
     s_abbr = state.abbr.lower()
-    with urlopen(f"{PREFIX}/{s_name}/{s_abbr}2020.pl.zip") as f:
+    with urlopen(f"{PREFIX.format(year=year)}/{s_name}/{s_abbr}{year}.pl.zip") as f:
         result = f.read()
     f = zipfile.ZipFile(io.BytesIO(result))
 
@@ -39,6 +51,7 @@ def download_census_for_state(state, columns, filter_level):
                 names=headers,
                 encoding="latin-1",
             )
+            # import IPython; IPython.embed()
             result = result[
                 [
                     col
@@ -48,9 +61,9 @@ def download_census_for_state(state, columns, filter_level):
             ]
             return result
 
-    geodb = collect(f"{s_abbr}geo2020.pl", geoheaders)
+    geodb = collect(f"{s_abbr}geo{year}.pl", geoheaders)
     seps = {
-        i: collect(f"{s_abbr}0000{i}2020.pl", segment_headers[i])
+        i: collect(f"{s_abbr}0000{i}{year}.pl", segment_headers[i])
         for i in segment_headers
     }
     tables = [geodb, *[seps[i] for i in sorted(seps)]]
@@ -67,16 +80,16 @@ def download_census_for_state(state, columns, filter_level):
     return overall[columns]
 
 
-def download_census(columns, states, filter_level):
+def download_census(columns, states, filter_level, *, year):
     result = None
     for state in tqdm.tqdm(us.states.STATES_AND_TERRITORIES + [us.states.DC]):
         if state.abbr not in states:
             continue
         current = download_census_for_state(
-            state, columns=columns, filter_level=filter_level
+            state, columns=columns, filter_level=filter_level, year=year
         )
         if result is None:
             result = current
         else:
             result = pd.concat([result, current])
-    return result
+    return result.sort_values("SUMLEV")
