@@ -8,6 +8,14 @@ import tqdm
 import pandas as pd
 from permacache import permacache
 
+geoheaders_2010 = {
+    "SUMLEV": [(8, 11)],
+    "LOGRECNO": [(18, 25)],
+    "GEOID": [(27, 32), (54, 65)],
+    "POP100": [(318, 327)],
+    "INTPTLAT": [(336, 347)],
+    "INTPTLON": [(347, 359)],
+}
 
 PREFIX = "https://www2.census.gov/programs-surveys/decennial/{year}/data/01-Redistricting_File--PL_94-171"
 
@@ -15,9 +23,9 @@ headers_2020 = "https://www2.census.gov/programs-surveys/decennial/rdo/about/202
 
 
 def get_headers(year):
-    # assuming 2010 has the same headers as 2020 execpt without the 3rd sheet
-
-    assert year == 2020
+    if year == 2010:
+        _, segment_headers_2020 = get_headers(2020)
+        return geoheaders_2010, {1: segment_headers_2020[1], 2: segment_headers_2020[2]}
 
     xls = pd.ExcelFile(headers_2020)
     geoheaders = list(pd.read_excel(xls, "2020 P.L. Geoheader Fields"))
@@ -30,7 +38,27 @@ def get_headers(year):
 PER_FILE_COLUMNS = {"FILEID", "CHARITER", "CIFSN"}
 
 
+def read_2010_geo(data, headers):
+    data = data.decode("latin-1").split("\n")
+    assert data.pop() == ""
+    columns = {}
+    for header, ranges in headers.items():
+        columns[header] = []
+        for line in data:
+            assert line
+            columns[header].append("".join(line[start:end] for start, end in ranges))
+        if header == "GEOID":
+            columns[header] = ["7500000US" + x for x in columns[header]]
+        elif header == "LOGRECNO":
+            columns[header] = [int(x.strip()) for x in columns[header]]
+        else:
+            columns[header] = [float(x.strip()) for x in columns[header]]
+    table = pd.DataFrame(columns)
+    return table
+
+
 def download_census_for_state(state, columns, *, filter_level, year):
+    assert filter_level == 750
     geoheaders, segment_headers = get_headers(year)
     if columns is None:
         columns = geoheaders + [v for vals in segment_headers.values() for v in vals]
@@ -38,20 +66,22 @@ def download_census_for_state(state, columns, *, filter_level, year):
     assert set(columns) & PER_FILE_COLUMNS == set()
     s_name = state.name.replace(" ", "_")
     s_abbr = state.abbr.lower()
-    with urlopen(f"{PREFIX.format(year=year)}/{s_name}/{s_abbr}{year}.pl.zip") as f:
+    zip_path = f"{PREFIX.format(year=year)}/{s_name}/{s_abbr}{year}.pl.zip"
+    with urlopen(zip_path) as f:
         result = f.read()
     f = zipfile.ZipFile(io.BytesIO(result))
 
-    def collect(path, headers):
+    def collect(path, headers, is_geo=False):
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=pd.errors.DtypeWarning)
+            if year == 2010 and is_geo:
+                return read_2010_geo(f.read(path), headers)
             result = pd.read_csv(
                 io.BytesIO(f.read(path)),
-                sep="|",
+                sep="|" if year == 2020 else ",",
                 names=headers,
                 encoding="latin-1",
             )
-            # import IPython; IPython.embed()
             result = result[
                 [
                     col
@@ -61,7 +91,7 @@ def download_census_for_state(state, columns, *, filter_level, year):
             ]
             return result
 
-    geodb = collect(f"{s_abbr}geo{year}.pl", geoheaders)
+    geodb = collect(f"{s_abbr}geo{year}.pl", geoheaders, is_geo=True)
     seps = {
         i: collect(f"{s_abbr}0000{i}{year}.pl", segment_headers[i])
         for i in segment_headers
@@ -71,7 +101,7 @@ def download_census_for_state(state, columns, *, filter_level, year):
     for table in tables[1:]:
         common_columns = set(table) & set(overall)
         for col in common_columns:
-            assert (table[col] == overall[col]).all()
+            assert (table[col] == overall[col]).all(), (col, table[col], overall[col])
         overall = overall.merge(table)
 
     if filter_level is not None:
