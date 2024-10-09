@@ -6,7 +6,7 @@ def cli():
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", required=True, help="Output path (csv file)")
     parser.add_argument(
-        "--year", type=int, default=2020, choices=[2010, 2020], help="Year"
+        "--year", type=int, default=2020, choices=[2000, 2010, 2020], help="Year"
     )
     parser.add_argument("--columns", nargs="+", required=False, default=None)
     parser.add_argument(

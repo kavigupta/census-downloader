@@ -8,6 +8,8 @@ import tqdm
 import pandas as pd
 from permacache import permacache
 
+from census_downloader.census_2000_api import data_for_state_2000
+
 geoheaders_2010 = {
     "SUMLEV": [(8, 11)],
     "LOGRECNO": [(18, 25)],
@@ -59,6 +61,8 @@ def read_2010_geo(data, headers):
 
 def download_census_for_state(state, columns, *, filter_level, year):
     assert filter_level == 750
+    if year == 2000:
+        return data_for_state_2000(state, columns)
     geoheaders, segment_headers = get_headers(year)
     if columns is None:
         columns = geoheaders + [v for vals in segment_headers.values() for v in vals]
